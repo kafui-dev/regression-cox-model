@@ -1,0 +1,316 @@
+---
+title: "Cox Model"
+output: html_notebook
+---
+
+# Modèle de Cox - colon (package: survival)
+
+Chargement des packages nécessaires
+
+```{r}
+source("./load_libraries.R")
+if (!dir.exists("img")) dir.create("img")
+```
+
+## Traitement des données et analyse exploratoire
+
+Chargement des données
+
+```{r}
+data("cancer", package = "survival")
+```
+
+Analyse de la structure des données
+
+```{r}
+str(cancer)
+```
+
+La variable **inst** qui représente le code d'institution n'a aucun intérêt pour notre étude, donc nous allons la supprimer du dataset.
+
+```{r}
+cancer <- cancer[, -1]
+str(cancer)
+```
+
+```{r}
+head(cancer)
+```
+
+Bien. Observons un peu le temps de survie.
+
+Pour analyser visuellement donc la probabilité de survie des individus en fonction de leur sexe, nous allons utiliser la **courbe de survie de Kaplan-Meier.**
+
+### Courbe de survie de Kaplan-Meier
+
+On doit :
+
+-   créer un **objet de survie** grâce à la fonction **Surv()** du package **survival**
+
+-   calculer les probabilités de survie en fonction du temps grâce à la fonction **survfit()**
+
+-   tracer les courbes de survie grâce à la fonction **ggsurvplot** du package **survminer**
+
+```{r}
+# création de l'objet de survie 
+surv_obj <- Surv(time = cancer$time, event = cancer$status)
+str(surv_obj)
+head(surv_obj)
+```
+
+Les données marquées de '+' sont des données censurées.
+
+```{r}
+summary(surv_obj)
+```
+
+```{r}
+# calcul des probabilités de survie par ajustement du modèle de Kaplan-Meier; remarque, le calcul a été fait en fonction du sexe
+surv_probs <- survfit(surv_obj ~ sex, data = cancer)
+
+# détails des calculs
+summary(surv_probs)
+
+# visualisation
+p_sexe <- ggsurvplot(
+  surv_probs,
+  data = cancer,
+  conf.int = TRUE,
+  pval = TRUE
+)
+p_sexe
+ggsave("img/survie_kaplan_meier_sexe.png", plot = p_sexe$plot)
+
+```
+
+La p-value ici p=0.01013 (significatif) est celui du test de *log-rank.*
+
+Visuellement parlant, on pourrait dire qu'il existe une différence significative entre la survie des hommes et des femmes tous atteints du cancer. Ce qui est confirmé par la p-value affichée (0.0013), qui est celle du **test de log-rank**.
+
+De plus, la courbe de survie des femmes est décalée à droite par rapport à celle des hommes. Les femmes atteintes du cancer vivraient donc plus que les hommes.
+
+------------------------------------------------------------------------
+
+### Le test de log-rank
+
+Le test du log‑rank est un test non-paramétrique qui compare, pour plusieurs groupes, **la distribution du temps jusqu’à l’événement d’intérêt**, en tenant compte de la **censure** (individus qui n’ont pas eu l’événement à la fin de l’observation).
+
+#### **Hypothèses**
+
+-   Hypothèse nulle $H_0$ :\
+    Les fonctions de survie des groupes sont identiques :
+
+    $S1(t)=S2(t)=⋯=Sk(t).S1​(t)=S2​(t)=⋯=Sk​(t)$.
+
+-   Hypothèse alternative$H_1$​ :\
+    Au moins deux groupes ont des fonctions de survie différentes.
+
+#### **Statistique**
+
+Le test compare, à chaque temps d’événement, le **nombre d’événements observés** dans chaque groupe au **nombre attendu** sous l’hypothèse que les groupes ont la même survie.
+
+Pour k groupes, on note $O_j$​ et $E_j$ les événements observés et attendus dans le groupe j :
+
+$χ2=∑j=1k(Oj−Ej)2Ej.χ2=j=1∑k​Ej​(Oj​−Ej​)2​.$
+
+Cette statistique suit (asymptotiquement) une loi du $χ2$ à $(k−1)$ degrés de liberté sous $H_0​$.
+
+#### **Règle de décision**
+
+Si la **p-value** associée à la statistique $χ2$ est $≤α$ → on **rejette** $H_0$ : il existe une **différence statistiquement significative** entre les courbes de survie des groupes.
+
+On peut le réaliser sous R de façon séparée :
+
+```{r}
+survival::survdiff(surv_obj ~ sex, data = cancer)
+```
+
+------------------------------------------------------------------------
+
+On aurait pu représenter les fonctions de survie séparément et avec n'importe quelle variable.
+
+```{r}
+
+# ----------HOMMES-------------------
+
+cancer_males <- cancer %>% filter(sex=1)
+
+surv_obj_males <- Surv(cancer_males$time)
+
+surv_probs_males <- survfit(surv_obj_males ~ sex, data = cancer_males)
+
+# détails des calculs
+summary(surv_probs_males)
+
+# visualisation
+p_hommes <- ggsurvplot(
+  surv_probs_males,
+  data = cancer_males,
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "Survie Hommes"
+)
+p_hommes
+ggsave("img/survie_hommes.png", plot = p_hommes$plot)
+
+# ---------FEMMES--------------------
+
+cancer_females <- cancer %>% filter(sex==2)
+
+surv_obj_females <- Surv(cancer_females$time)
+
+surv_probs_females <- survfit(surv_obj_females ~ sex, data = cancer_females)
+
+# détails des calculs
+summary(surv_probs_females)
+
+# visualisation
+p_femmes <- ggsurvplot(
+  surv_probs_females,
+  data = cancer_females,
+  conf.int = TRUE,
+  pval = TRUE,
+  title = "Survie Femmes"
+)
+p_femmes
+ggsave("img/survie_femmes.png", plot = p_femmes$plot)
+```
+
+On remarque que les courbes est en décroissance exponentielle, ce qui est une caractéristique d'une courbe de survie.
+
+### Boxplots
+
+------------------------------------------------------------------------
+
+## Estimation du Modèle
+
+Dans ce modèle, nous allons faire une régression de Cox pour analyser l'effet de toutes les variables sur la survie des patients.
+
+$$
+\begin{multline}
+h(t \mid X_i) = h_0(t) \exp\left( \beta_{\text{age}} \cdot \text{age}_i 
+\\+ \beta_{\text{sex}} \cdot \text{sex}_i + \beta_{\text{ph.ecog}} \cdot \text{ph.ecog}_i 
+\\+ \beta_{\text{ph.karno}} \cdot \text{ph.karno}_i + \beta_{\text{meal.cal}} \cdot \text{meal.cal}_i 
+\\+ \beta_{\text{wt.loss}} \cdot \text{wt.loss}_i \right)
+\end{multline}
+$$
+
+```{r}
+# filtrage des données
+cancer %>% na.omit
+```
+
+```{r}
+model <- coxph(
+  surv_obj ~ age + sex + ph.ecog + ph.karno + meal.cal + wt.loss, data = cancer
+)
+```
+
+## Analyse des résultats et interprétation
+
+```{r}
+summary(model)
+```
+
+```{r}
+parameters(model, exponentiate = TRUE)
+```
+
+On peut aussi les afficher.
+
+```{r}
+ggcoef_model(model, exponentiate=TRUE)
+ggsave("img/coefficients_cox.png")
+```
+
+Le modèle final s'écrit donc :\
+$$
+h(t \mid X_i) = h_0(t) \exp\bigl(
+\begin{aligned}
+&1{,}346 \times 10^{-2} \cdot \text{age}_i \\
+&- 5{,}570 \times 10^{-1} \cdot \text{sex}_i \\
+&+ 7{,}943 \times 10^{-1} \cdot \text{ph.ecog}_i \\
+&+ 1{,}985 \times 10^{-2} \cdot \text{ph.karno}_i \\
+&- 5{,}028 \times 10^{-5} \cdot \text{meal.cal}_i \\
+&- 1{,}136 \times 10^{-2} \cdot \text{wt.loss}_i
+\bigr)
+\end{aligned}
+$$
+
+### 1ère partie : les coefficients
+
+L'analyse des coefficients nous fait comprendre que seuls les variables **sex** et **ph.ecog** sont significatives. Alors, *la survie des patients atteints du cancer de poumon avancé est fortement influencée par le sexe et le score de performance ECOG.*
+
+> **Info:**
+>
+> *Le score de performance ECOG (Eastern Cooperative Oncology Group), ou indice de Zubrod/OMS, évalue l'état fonctionnel d'un patient atteint de cancer, mesurant l'impact de la maladie sur sa vie quotidienne. Il aide à déterminer l'aptitude aux traitements (chimiothérapie) et l'éligibilité aux essais cliniques.*
+
+### 2e partie : les Hazards de Ratio
+
+C'est la partie qui présente les expoentielles des coefficients. On n'analysera ici que le HR des variables avec effet significatif, notamment les variables **sex** et **ph.ecog**.
+
+-   $HR_{sex} = 0.57$ et $IC_{sex} = [0.39, 0.85]$ : les femmes atteintes du cancer de sein ont donc en moyenne un risque de décès 43% plus bas que celui des hommes, et peut varier de 15% à 61% selon les cas, toutes choses étant égales ailleurs, et avec un taux d'erreur de 5%.
+
+-   $HR_{ph.ecog} = 2.21$ et $IC_{ph.ecog} = [1.46, 3.36]$ : le risque de décès est augmente de 121% chaque fois que **ph.ecog** augmente, et peut varier de 46% à 236%, toutes choses étant égales ailleurs et avec un taux d'erreur de 5%. C'est un *facteur à risque.*
+
+### Interprétation finale
+
+Le sexe du patient et son score ECOG ont une grande influence sur le taux de survie des patients atteints du cancer de poumon. Pour un taux d'erreur de 5%, les hommes ont en moyenne 57% de risques de décès de plus que les femmes, et le score ECOG peut augmenter de 46% jusqu'à plus de 200% les risques de décès.undefinedVérification des hypothèses du modèle
+
+## Vérification des hypothèses du modèle
+
+### Porportionnalité des risques
+
+Test des résidus de Schoenfeld ou test de Gambsch-Therneau.
+
+```{r}
+cox.zph(model)
+```
+
+On constate qu'aucune coefficient n'est significatif, alors on ne peut pas rejeter l'hypothèse de porportionnalité des risques.
+
+```{r}
+par(mfrow=c(2,3))
+plot(cox.zph(model))
+dev.print(png, "img/test_proportionnalite_risques.png")
+```
+
+On ne remarque pas de distribution significative des résidus de Schoenfeld en fonction du temps, ce qui confirme la conclusion précédente.
+
+### Log-linéarité entre les risques et les covariables
+
+Pour cela :
+
+-   on crée le modèle nul de Cox
+
+-   on en déduit les résidus de Martingale
+
+-   on fait une analyse graphique
+
+Si dans l'analyse graphique une tendance non linéaire est découverte, l'hypothèse de la log-linéarité est violée.
+
+```{r}
+# modèle nul
+model_null <- coxph(surv_obj ~ 1, data = cancer)
+
+# résidus de Martingale
+res_martingale <- residuals(model_null, type = "martingale")
+
+# plot
+ggplot() + geom_point(aes(x=res_martingale, y=cancer$age)) + ggtitle("Résidus de Martingale vs age")
+ggsave("img/residus_martingale_age.png")
+ggplot() + geom_point(aes(x=res_martingale, y=cancer$sex)) + ggtitle("Résidus de Martingale vs sex")
+ggsave("img/residus_martingale_sex.png")
+ggplot() + geom_point(aes(x=res_martingale, y=cancer$ph.ecog)) + ggtitle("Résidus de Martingale vs ph.ecog")
+ggsave("img/residus_martingale_ph_ecog.png")
+ggplot() + geom_point(aes(x=res_martingale, y=cancer$ph.karno)) + ggtitle("Résidus de Martingale vs ph.karno")
+ggsave("img/residus_martingale_ph_karno.png")
+ggplot() + geom_point(aes(x=res_martingale, y=cancer$pat.karno)) + ggtitle("Résidus de Martingale vs pat.karno")
+ggsave("img/residus_martingale_pat_karno.png")
+ggplot() + geom_point(aes(x=res_martingale, y=cancer$meal.cal)) + ggtitle("Résidus de Martingale vs meal.cal")
+ggsave("img/residus_martingale_meal_cal.png")
+ggplot() + geom_point(aes(x=res_martingale, y=cancer$wt.loss)) + ggtitle("Résidus de Martingale vs wt.loss")
+ggsave("img/residus_martingale_wt_loss.png")
+```
+
+Aucune relation non-linéaire n'est visible, on peut donc dire que l'hypothèse de log-linéarité n'est pas rejetée.
