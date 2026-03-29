@@ -133,7 +133,7 @@ On aurait pu représenter les fonctions de survie séparément et avec n'importe
 
 # ----------HOMMES-------------------
 
-cancer_males <- cancer %>% filter(sex=1)
+cancer_males <- cancer %>% filter(sex==1)
 
 surv_obj_males <- Surv(cancer_males$time)
 
@@ -298,19 +298,35 @@ res_martingale <- residuals(model_null, type = "martingale")
 
 # plot
 ggplot() + geom_point(aes(x=res_martingale, y=cancer$age)) + ggtitle("Résidus de Martingale vs age")
-ggsave("img/residus_martingale_age.png")
+#ggsave("img/residus_martingale_age.png")
+
 ggplot() + geom_point(aes(x=res_martingale, y=cancer$sex)) + ggtitle("Résidus de Martingale vs sex")
-ggsave("img/residus_martingale_sex.png")
+#ggsave("img/residus_martingale_sex.png")
+
 ggplot() + geom_point(aes(x=res_martingale, y=cancer$ph.ecog)) + ggtitle("Résidus de Martingale vs ph.ecog")
-ggsave("img/residus_martingale_ph_ecog.png")
+#ggsave("img/residus_martingale_ph_ecog.png")
+
 ggplot() + geom_point(aes(x=res_martingale, y=cancer$ph.karno)) + ggtitle("Résidus de Martingale vs ph.karno")
-ggsave("img/residus_martingale_ph_karno.png")
+#ggsave("img/residus_martingale_ph_karno.png")
+
 ggplot() + geom_point(aes(x=res_martingale, y=cancer$pat.karno)) + ggtitle("Résidus de Martingale vs pat.karno")
-ggsave("img/residus_martingale_pat_karno.png")
+#ggsave("img/residus_martingale_pat_karno.png")
+
 ggplot() + geom_point(aes(x=res_martingale, y=cancer$meal.cal)) + ggtitle("Résidus de Martingale vs meal.cal")
-ggsave("img/residus_martingale_meal_cal.png")
+#ggsave("img/residus_martingale_meal_cal.png")
+
 ggplot() + geom_point(aes(x=res_martingale, y=cancer$wt.loss)) + ggtitle("Résidus de Martingale vs wt.loss")
-ggsave("img/residus_martingale_wt_loss.png")
+#ggsave("img/residus_martingale_wt_loss.png")
 ```
 
 Aucune relation non-linéaire n'est visible, on peut donc dire que l'hypothèse de log-linéarité n'est pas rejetée.
+
+------------------------------------------------------------------------
+
+## Discussion
+
+Dans ce travail, nous avons vu que la variable ph.ecog est celle qui a le plus d'influence sur la survie des patients atteints du cancer de poumon. Cela veut dire que plus le score de performance ECOG est élevé, plus le risque de décès augmente.
+
+Cependant, en essayant de comprendre le score de performance ECOG, on comprend qu'il rend compte de l'effet que le cancer a sur la vie quotidienne du patient **déjà atteint** **du cancer**. Autrement dit, l'effet du score ECOG sur le risque de décès n'est pas causal et peut être compris de façon intuitive. En effet, plus l'état du cancer est avancé, plus la vie du patient sera affectée, ce qui modifie déjà la valeur du score ECOG. De plus, c'est une variable qui n'est pas continue, ce qui peut être à l'origine des valeurs élevées du HR.
+
+A notre avis donc, cette modélisation pourrait être plus informative et utile s'il s'agissait d'évaluer l'effet d'un traitement ou d'un changement quelconque de condition chez les patients, et qui aurait eu une relation causale directe sur l'évolution de la maladie afin de pouvoir examiner l'effet et d'en tirer des conclusion pour un meilleur traitement.
