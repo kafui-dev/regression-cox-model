@@ -53,7 +53,7 @@ On doit :
 
 ```{r}
 # création de l'objet de survie 
-surv_obj <- Surv(time = cancer$time, event = cancer$status)
+surv_obj <- Surv(time = cancer$time, event = cancer$status);
 str(surv_obj)
 head(surv_obj)
 ```
@@ -66,7 +66,7 @@ summary(surv_obj)
 
 ```{r}
 # calcul des probabilités de survie par ajustement du modèle de Kaplan-Meier; remarque, le calcul a été fait en fonction du sexe
-surv_probs <- survfit(surv_obj ~ sex, data = cancer)
+surv_probs <- survfit(surv_obj ~ sex, data = cancer);
 
 # détails des calculs
 summary(surv_probs)
@@ -79,7 +79,7 @@ p_sexe <- ggsurvplot(
   pval = TRUE
 )
 p_sexe
-ggsave("img/survie_kaplan_meier_sexe.png", plot = p_sexe$plot)
+#ggsave("img/survie_kaplan_meier_sexe.png", plot = p_sexe$plot)
 
 ```
 
@@ -133,11 +133,11 @@ On aurait pu représenter les fonctions de survie séparément et avec n'importe
 
 # ----------HOMMES-------------------
 
-cancer_males <- cancer %>% filter(sex==1)
+cancer_males <- cancer %>% filter(sex==1);
 
-surv_obj_males <- Surv(cancer_males$time)
+surv_obj_males <- Surv(cancer_males$time);
 
-surv_probs_males <- survfit(surv_obj_males ~ sex, data = cancer_males)
+surv_probs_males <- survfit(surv_obj_males ~ sex, data = cancer_males);
 
 # détails des calculs
 summary(surv_probs_males)
@@ -151,7 +151,7 @@ p_hommes <- ggsurvplot(
   title = "Survie Hommes"
 )
 p_hommes
-ggsave("img/survie_hommes.png", plot = p_hommes$plot)
+#ggsave("img/survie_hommes.png", plot = p_hommes$plot)
 
 # ---------FEMMES--------------------
 
@@ -173,12 +173,10 @@ p_femmes <- ggsurvplot(
   title = "Survie Femmes"
 )
 p_femmes
-ggsave("img/survie_femmes.png", plot = p_femmes$plot)
+#ggsave("img/survie_femmes.png", plot = p_femmes$plot)
 ```
 
 On remarque que les courbes est en décroissance exponentielle, ce qui est une caractéristique d'une courbe de survie.
-
-### Boxplots
 
 ------------------------------------------------------------------------
 
@@ -203,7 +201,7 @@ cancer %>% na.omit
 ```{r}
 model <- coxph(
   surv_obj ~ age + sex + ph.ecog + ph.karno + meal.cal + wt.loss, data = cancer
-)
+);
 ```
 
 ## Analyse des résultats et interprétation
@@ -272,7 +270,7 @@ On constate qu'aucune coefficient n'est significatif, alors on ne peut pas rejet
 ```{r}
 par(mfrow=c(2,3))
 plot(cox.zph(model))
-dev.print(png, "img/test_proportionnalite_risques.png")
+#dev.print(png, "img/test_proportionnalite_risques.png")
 ```
 
 On ne remarque pas de distribution significative des résidus de Schoenfeld en fonction du temps, ce qui confirme la conclusion précédente.
